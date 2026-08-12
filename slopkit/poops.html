@@ -80,10 +80,11 @@
     <span class="stage-chip" data-chip="rop">ROP</span>
     <span class="stage-chip" data-chip="kernel">Kernel</span>
     <span class="stage-chip" data-chip="elfldr">elfldr</span>
+    <span class="stage-chip" data-chip="iris">Iris</span>
     <span class="stage-chip" data-chip="kstuff">kstuff</span>
     <span class="stage-chip" data-chip="pldmgr">pldmgr</span>
   </div>
-  <div id="badge">ONLINE · PAYLOAD MANAGER</div>
+  <div id="badge">LAB · IRIS INSTALL</div>
   <div id="vitals"></div>
   <div id="cfg"></div>
   <pre id="early"></pre>
@@ -101,13 +102,15 @@
   </div>
   <div id="payloadMenu">
     <div class="menuTitle">PAYLOADS</div>
+    <a class="payloadTile primary" href="#" data-name="iris-installer.elf" data-key="iris"
+       data-state="default"><span>Iris Installer</span><span class="meta">auto first</span></a>
     <a class="payloadTile" href="#" data-name="kstuff-lite.elf" data-key="kstuff"
        data-remote="https://github.com/EchoStretch/kstuff-lite/releases/latest/download/kstuff.elf"
-       data-state="default"><span>Kstuff Lite</span><span class="meta">auto first</span></a>
-    <a class="payloadTile primary" href="#" data-name="pldmgr.elf" data-key="pldmgr"
+       data-state="default"><span>Kstuff Lite</span><span class="meta">manual</span></a>
+    <a class="payloadTile" href="#" data-name="pldmgr.elf" data-key="pldmgr"
        data-release-api="https://api.github.com/repos/itsPLK/ps5-payload-manager/releases/latest"
        data-asset-re="^pldmgr.*\\.elf$"
-       data-state="default"><span>Payload Manager</span><span class="meta">auto latest</span></a>
+       data-state="default"><span>Payload Manager</span><span class="meta">manual</span></a>
     <a class="payloadTile" href="#" data-name="ftpsrv-ps5.elf" data-key="ftp"
        data-state="default"><span>FTP</span><span class="meta">aux</span></a>
     <a class="payloadTile" href="#" data-name="gdbsrv-ps5.elf" data-key="gdb"
@@ -130,6 +133,8 @@
     · lite host &amp; tooling: <strong>Ramesh</strong>
     · <a href="https://github.com/EchoStretch/kstuff-lite" target="_blank" rel="noopener">EchoStretch/kstuff-lite</a>
     · <a href="https://github.com/itsPLK/ps5-payload-manager" target="_blank" rel="noopener">itsPLK/ps5-payload-manager</a>
+    · Iris install: <a href="https://github.com/EzioRamesha/ramesh-webkit-autoloader" target="_blank" rel="noopener">ramesh-webkit-autoloader</a>
+      / <a href="https://github.com/itsPLK/ps5-webkit-autoloader" target="_blank" rel="noopener">itsPLK installer</a>
     · <a href="https://github.com/sleirsgoevy" target="_blank" rel="noopener">sleirsgoevy</a>
   </footer>
 </div>
@@ -916,96 +921,61 @@ async function sendPayloadInPlace(name, tile, opts) {
 }
 
 let autoInjectStarted = false;
+/** Lab first task: install Iris homescreen app via WebKit Autoloader installer ELF. */
+const IRIS_INSTALLER_NAME = "iris-installer.elf";
 /**
- * Auto chain: kstuff-lite (latest) then always attempt pldmgr.
- * Kstuff failure does not skip pldmgr unless the sender is blocked.
+ * Auto chain (lab): Iris installer first. kstuff/pldmgr stay manual tiles.
  * @returns {Promise<void>}
  */
 async function autoInjectPayloads() {
     if (autoInjectStarted) return;
     autoInjectStarted = true;
-    const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
-    const kTile = payloadMenuEl.querySelector('[data-name="' + KSTUFF_LITE_NAME + '"]');
-    const pTile = payloadMenuEl.querySelector('[data-name="pldmgr.elf"]');
+    const irisTile = payloadMenuEl.querySelector('[data-name="' + IRIS_INSTALLER_NAME + '"]');
     const retry = document.getElementById("retryInject");
     const showRetry = (label) => {
         if (!retry) return;
         retry.disabled = false;
-        retry.textContent = label || "RETRY AUTO INJECT";
+        retry.textContent = label || "RETRY IRIS INSTALL";
         retry.className = "on";
     };
 
     setReactorState("inject");
-    setStageChip("kstuff", "on");
-    stage("INJECTING KSTUFF-LITE (GitHub latest, local fallback)", "");
-    flushMark("KSTUFF-AUTO-START", "remote=1-name=" + KSTUFF_LITE_NAME);
-    const kOk = await sendPayloadInPlace(KSTUFF_LITE_NAME, kTile, {
-        remoteUrl: KSTUFF_LITE_REMOTE
-    });
-    if (kOk) {
-        setStageChip("kstuff", "done");
-        flushMark("KSTUFF-AUTO-OK", "name=" + KSTUFF_LITE_NAME);
-        stage("KSTUFF-LITE OK — waiting " + AUTO_CHAIN_GAP_MS + "ms before PLDMGR", "ok");
-        await sleepMs(AUTO_CHAIN_GAP_MS);
-    } else {
-        setStageChip("kstuff", "fail");
-        if (payloadSenderBlocked) {
-            setReactorState("bad");
-            stageEl.textContent = "KSTUFF BLOCKED — REBOOT REQUIRED";
-            stageEl.className = "bad";
-            if (retry) {
-                retry.className = "";
-                retry.textContent = "REBOOT REQUIRED";
-                retry.disabled = true;
-            }
-            flushMark("KSTUFF-AUTO-BLOCKED", clean(payloadSenderBlocked));
-            return;
-        }
-        flushMark("KSTUFF-AUTO-FAIL", "name=" + KSTUFF_LITE_NAME
-            + "-continuing-pldmgr=1");
-        stage("KSTUFF-LITE failed — still injecting PLDMGR", "bad");
-        await sleepMs(400);
-    }
-
-    setStageChip("pldmgr", "on");
-    stage("INJECTING PLDMGR (GitHub latest, local fallback)", "");
-    flushMark("PLDMGR-AUTO-START", "name=" + PLDMGR_NAME + "-after-kstuff="
-        + (kOk ? 1 : 0) + "-connectAttempts=" + PAYLOAD_CONNECT_ATTEMPTS);
-    const ok = await sendPayloadInPlace(PLDMGR_NAME,
-        pTile || payloadMenuEl.getElementsByTagName("a")[0], {
-            releaseApi: PLDMGR_RELEASE_API,
-            assetRe: PLDMGR_ASSET_RE
-        });
+    setStageChip("iris", "on");
+    stage("INSTALLING IRIS — sending homescreen installer", "");
+    flushMark("IRIS-AUTO-START", "name=" + IRIS_INSTALLER_NAME);
+    const ok = await sendPayloadInPlace(IRIS_INSTALLER_NAME, irisTile);
     if (ok) {
         setReactorState("online");
-        setStageChip("pldmgr", "done");
-        stageEl.textContent = kOk
-            ? "KSTUFF-LITE + PAYLOAD MANAGER ONLINE"
-            : "PAYLOAD MANAGER ONLINE (kstuff-lite failed)";
+        setStageChip("iris", "done");
+        stageEl.textContent = "IRIS INSTALLER SENT — follow on-console prompts, then reboot once";
         stageEl.className = "ok";
-        syncStageChips("pldmgr online", "ok");
-        flushMark("PLDMGR-AUTO-OK", "name=pldmgr.elf-kstuff=" + (kOk ? 1 : 0));
-        if (!kOk) showRetry("RETRY KSTUFF-LITE");
-        else if (retry) retry.className = "";
-    } else if (payloadSenderBlocked) {
+        syncStageChips("iris install", "ok");
+        flushMark("IRIS-AUTO-OK", "name=" + IRIS_INSTALLER_NAME);
+        if (retry) {
+            retry.className = "";
+            retry.textContent = "RETRY IRIS INSTALL";
+        }
+        return;
+    }
+    if (payloadSenderBlocked) {
         setReactorState("bad");
-        setStageChip("pldmgr", "fail");
-        stageEl.textContent = "PLDMGR BLOCKED — REBOOT REQUIRED";
+        setStageChip("iris", "fail");
+        stageEl.textContent = "IRIS INSTALL BLOCKED — REBOOT REQUIRED";
         stageEl.className = "bad";
         if (retry) {
             retry.className = "";
             retry.textContent = "REBOOT REQUIRED";
             retry.disabled = true;
         }
-        flushMark("PLDMGR-AUTO-BLOCKED", clean(payloadSenderBlocked));
-    } else {
-        setReactorState("inject-fail");
-        setStageChip("pldmgr", "fail");
-        stageEl.textContent = "PLDMGR INJECT FAILED — RETRY OR REBOOT";
-        stageEl.className = "bad";
-        showRetry("RETRY AUTO INJECT");
-        flushMark("PLDMGR-AUTO-FAIL", "name=pldmgr.elf");
+        flushMark("IRIS-AUTO-BLOCKED", clean(payloadSenderBlocked));
+        return;
     }
+    setReactorState("inject-fail");
+    setStageChip("iris", "fail");
+    stageEl.textContent = "IRIS INSTALL FAILED — RETRY OR REBOOT";
+    stageEl.className = "bad";
+    showRetry("RETRY IRIS INSTALL");
+    flushMark("IRIS-AUTO-FAIL", "name=" + IRIS_INSTALLER_NAME);
 }
 
 {
