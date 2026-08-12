@@ -51,8 +51,10 @@
   #payloadMenu .payloadTile[data-state="sent"]{border-color:#2a7;color:#7dffb2}
   #payloadMenu .payloadTile[data-state="failed"]{border-color:#a33;color:#ff8a9a}
   #payloadMenu .payloadTile img,.legacy,.stage-rail,#reactor,.field,.scan,.beam,.brand-row,#dt{display:none!important}
-  #retryInject,#forceAfterReboot{display:none;margin:10px 0;padding:10px 14px;background:#111;color:#ff8a9a;border:1px solid #a33}
+  #retryInject,#forceAfterReboot,#installIris{display:none;margin:10px 6px 10px 0;padding:10px 14px;background:#111;color:#ff8a9a;border:1px solid #a33}
   #retryInject.on,#forceAfterReboot.on{display:inline-block}
+  #installIris.on{display:inline-block;color:#5EE7FF;border-color:#5EE7FF;background:#0B1220}
+  #installIris:active{opacity:.75}
   .drawer-toggle{margin:8px 0;padding:6px 10px;background:#111;color:#9ab;border:1px solid #333}
   #deepDrawer{display:none}#deepDrawer.on{display:block}
   table{width:100%;border-collapse:collapse;font-size:12px}
@@ -122,7 +124,8 @@
     <a class="payloadTile" href="#" data-name="websrv-ps5.elf" data-key="web"
        data-state="default"><span>Web</span><span class="meta">aux</span></a>
   </div>
-  <button type="button" id="retryInject">RETRY AUTO INJECT</button>
+  <button type="button" id="installIris">INSTALL IRIS</button>
+  <button type="button" id="retryInject">RETRY IRIS INSTALL</button>
   <button type="button" id="forceAfterReboot">I REBOOTED — START JAILBREAK</button>
   <div id="nav"></div>
   <div id="arm" hidden>Not armed. Redirecting…</div>
@@ -552,6 +555,12 @@ function showPayloadMenu() {
     navEl.textContent = "";
     navEl.style.display = "none";
     payloadMenuEl.className = "on";
+    const installBtn = document.getElementById("installIris");
+    if (installBtn) {
+        installBtn.className = "on";
+        installBtn.disabled = false;
+        installBtn.textContent = "INSTALL IRIS";
+    }
     const tiles = payloadMenuEl.getElementsByTagName("a");
     if (tiles.length) try { tiles[0].focus(); } catch (e) { }
 }
@@ -997,6 +1006,24 @@ async function autoInjectPayloads() {
             autoInjectPayloads();
         };
     }
+    const installBtn = document.getElementById("installIris");
+    if (installBtn) {
+        installBtn.onclick = function () {
+            if (payloadSenderBlocked) {
+                stageEl.textContent = "IRIS INSTALL BLOCKED — REBOOT REQUIRED";
+                stageEl.className = "bad";
+                flushMark("IRIS-MANUAL-BLOCKED", clean(payloadSenderBlocked));
+                return;
+            }
+            if (payloadSendBusy) {
+                flushMark("IRIS-MANUAL-BUSY", "sender-still-busy");
+                return;
+            }
+            autoInjectStarted = false;
+            flushMark("IRIS-MANUAL-CLICK", "name=" + IRIS_INSTALLER_NAME);
+            autoInjectPayloads();
+        };
+    }
     const diag = document.getElementById("dt");
     if (diag) {
         diag.onclick = function () {
@@ -1019,10 +1046,14 @@ function setReactorState(mode) {
     const reactor = document.getElementById("reactor");
     const badge = document.getElementById("badge");
     const retry = document.getElementById("retryInject");
+    const installBtn = document.getElementById("installIris");
     if (!reactor) return;
     reactor.className = "reactor" + (mode ? " " + mode : "");
     if (badge) badge.className = mode === "online" ? "on" : "";
     if (retry) retry.className = mode === "inject-fail" ? "on" : "";
+    /* Keep manual Install Iris visible once the payload menu is up. */
+    if (installBtn && payloadMenuEl && payloadMenuEl.className === "on")
+        installBtn.className = "on";
 }
 
 function setStageChip(name, state) {
