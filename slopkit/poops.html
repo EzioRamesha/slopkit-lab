@@ -1054,7 +1054,11 @@ function syncStageChips(text, cls) {
         setStageChip("elfldr", "done");
         setStageChip("kstuff", cls === "bad" ? "fail" : (cls === "ok" ? "done" : "on"));
     }
-    if (/pldmgr|payload manager|inject/.test(t)) {
+    if (/iris|installer|homescreen/.test(t)) {
+        setStageChip("elfldr", "done");
+        setStageChip("iris", cls === "bad" ? "fail" : (cls === "ok" ? "done" : "on"));
+    }
+    if (/pldmgr|payload manager/.test(t)) {
         setStageChip("elfldr", "done");
         setStageChip("pldmgr", cls === "bad" ? "fail" : (cls === "ok" ? "done" : "on"));
     }
